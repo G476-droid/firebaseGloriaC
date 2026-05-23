@@ -9,6 +9,7 @@ import {
   Alert,
 } from "react-native";
 
+
 import { deleteSpecies } from "../services/speciesServices";
 import { deleteSpeciesImage } from "../services/storageServices";
 import { ScreenProps } from "../navigation/typeNavigation";
@@ -56,7 +57,6 @@ export const HomeScreen = ({ navigation }: Props) => {
     );
   };
 
-  // ── Render de cada tarjeta ────────────────────────────────────────────────
   const renderItem = ({ item }: { item: Species }) => (
     <TouchableOpacity
       style={homeStyles.card}
@@ -84,9 +84,41 @@ export const HomeScreen = ({ navigation }: Props) => {
         >
           <Text style={homeStyles.editBtnText}>✏️</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => confirmDelete(item)}>
-          <Text style={homeStyles.deleteBtnText}>🗑️</Text>
-        </TouchableOpacity>
+        <TouchableOpacity
+  onPress={() => {
+    Alert.alert(
+      "Eliminar especie",
+      "¿Seguro que desea eliminar esta especie?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+
+              if (item.imagePath) {
+                await deleteSpeciesImage(item.imagePath);
+              }
+
+              await deleteSpecies(item.id);
+
+              await reloadSpecies();
+
+            } catch (error) {
+              console.log(error);
+            }
+          },
+        },
+      ]
+    );
+  }}
+>
+  <Text style={homeStyles.deleteBtnText}>🗑️</Text>
+</TouchableOpacity>
       </View>
     </TouchableOpacity>
   );

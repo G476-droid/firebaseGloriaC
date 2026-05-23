@@ -6,17 +6,22 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 
 import { ScreenProps } from "../navigation/typeNavigation";
 import { detailStyles } from "../theme/appStyles";
 import { Species } from "../types/species";
-import { getSpeciesById } from "../services/speciesServices";
+
+import { getSpeciesById, deleteSpecies } from "../services/speciesServices";
+
+import { deleteSpeciesImage } from "../services/storageServices";
 
 type Props = ScreenProps<"Detail">;
 
 export const DetailScreen = ({ route, navigation }: Props) => {
   const { speciesId } = route.params;
+
   const [species, setSpecies] = useState<Species | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -27,13 +32,55 @@ export const DetailScreen = ({ route, navigation }: Props) => {
   const loadSpecies = async (): Promise<void> => {
     try {
       setLoading(true);
+
       const data = await getSpeciesById(speciesId);
+
       setSpecies(data);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // ELIMINAR
+  const handleDelete = () => {
+    Alert.alert(
+      "Eliminar especie",
+      "¿Seguro que desea eliminar esta especie?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // eliminar imagen storage
+              if (species?.imagePath) {
+                await deleteSpeciesImage(species.imagePath);
+              }
+
+              // eliminar registro
+              await deleteSpecies(speciesId);
+
+              Alert.alert(
+                "Eliminado",
+                "La especie fue eliminada correctamente.",
+              );
+
+              navigation.navigate("Home");
+            } catch (error) {
+              console.log(error);
+
+              Alert.alert("Error", "No se pudo eliminar la especie.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -76,6 +123,7 @@ export const DetailScreen = ({ route, navigation }: Props) => {
 
         <View style={detailStyles.field}>
           <Text style={detailStyles.fieldLabel}>Hábitat</Text>
+
           <Text style={detailStyles.fieldValue}>{species.habitat}</Text>
         </View>
       </View>
@@ -83,12 +131,16 @@ export const DetailScreen = ({ route, navigation }: Props) => {
       <View style={detailStyles.actions}>
         <TouchableOpacity
           style={detailStyles.editBtn}
-          onPress={() => navigation.navigate("Form", { speciesId })}
+          onPress={() =>
+            navigation.navigate("Form", {
+              speciesId,
+            })
+          }
         >
           <Text style={detailStyles.editBtnText}>✏️ Editar</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={detailStyles.deleteBtn} onPress={() => {}}>
+        <TouchableOpacity style={detailStyles.deleteBtn} onPress={handleDelete}>
           <Text style={detailStyles.deleteBtnText}>🗑️ Eliminar</Text>
         </TouchableOpacity>
       </View>
