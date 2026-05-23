@@ -1,28 +1,56 @@
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from "firebase/storage";
-import { storage } from "./firebaseConfig";
+import { supabase } from "./supabaseConfig";
+
+const BUCKET_NAME = "species-images";
 
 export const uploadSpeciesImage = async (
   localUri: string,
   speciesId: string,
-): Promise<string> => {
-  const response = await fetch(localUri);
-  const blob = await response.blob();
+): Promise<{ imageUrl: string; imagePath: string } | null> => {
+  try {
+    const fileExt = localUri.split(".").pop()?.toLowerCase() || "jpg";
+    const contentType = fileExt === "png" ? "image/png" : "image/jpeg";
+    const imagePath = `${speciesId}/${Date.now()}.${fileExt}`;
 
-  const imageRef = ref(storage, `species/${speciesId}.jpg`);
+    const response = await fetch(localUri);
+    const arrayBuffer = await response.arrayBuffer();
 
-  await uploadBytes(imageRef, blob);
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(imagePath, arrayBuffer, {
+        contentType,
+        upsert: true,
+      });
 
-  const downloadUrl = await getDownloadURL(imageRef);
-  return downloadUrl;
+    if (error) {
+      console.log("ERROR STORAGE:", error);
+      return null;
+    }
+
+    const { data } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(imagePath);
+
+    return {
+      imageUrl: data.publicUrl,
+      imagePath,
+    };
+  } catch (error) {
+    console.log("Error uploadSpeciesImage:", error);
+    return null;
+  }
 };
 
-//Eliminar imagen
-export const deleteSpeciesImage = async (speciesId: string): Promise<void> => {
-  const imageRef = ref(storage, `species/${speciesId}.jpg`);
-  await deleteObject(imageRef);
+export const deleteSpeciesImage = async (
+  imagePath: string,
+): Promise<void> => {
+  if (!imagePath) return;
+
+  const { error } = await supabase.storage
+    .from("species-images")
+    .remove([imagePath]);
+
+  if (error) {
+    console.log("Error deleteSpeciesImage:", error);
+    throw error;
+  }
 };

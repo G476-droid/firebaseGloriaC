@@ -2,30 +2,38 @@ import { useEffect, useState } from "react";
 import { Species } from "../types/species";
 import { subscribeToSpecies } from "../services/speciesServices";
 
-interface UseSpeciesReturn {
-  species: Species[];
-  loading: boolean;
-  error: string | null;
-}
-
-export const useSpecies = (): UseSpeciesReturn => {
+export const useSpecies = () => {
   const [species, setSpecies] = useState<Species[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadSpecies = () => {
+    setLoading(true);
+
     const unsubscribe = subscribeToSpecies(
       (data) => {
         setSpecies(data);
         setLoading(false);
       },
-      (error) => {
-        setError(error.message);
+      (err) => {
+        setError(err.message);
         setLoading(false);
       },
     );
-    //Cancelar subcripción al desmontar el componente
-    return () => unsubscribe();
+
+    return unsubscribe;
+  };
+
+  useEffect(() => {
+    const unsubscribe = loadSpecies();
+
+    return unsubscribe;
   }, []);
-  return { species, loading, error };
+
+  return {
+    species,
+    loading,
+    error,
+    reloadSpecies: loadSpecies,
+  };
 };

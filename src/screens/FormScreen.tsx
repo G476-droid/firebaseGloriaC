@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { uploadSpeciesImage } from "../services/storageServices";
+
 import {
   View,
   Text,
@@ -16,7 +18,12 @@ import { ScreenProps } from "../navigation/typeNavigation";
 import { formStyles } from "../theme/appStyles";
 import { SpeciesFormValues } from "../types/species";
 import { useImagePicker } from "../hooks/useImagePicker";
-import { addSpecies } from "../services/speciesServices";
+import {
+  addSpecies,
+  getSpeciesById,
+  updateSpecies,
+  deleteSpecies,
+} from "../services/speciesServices";
 
 type Props = ScreenProps<"Form">;
 
@@ -30,31 +37,68 @@ export const FormScreen = ({ route, navigation }: Props) => {
   const { localUri, uploading, pickFromGallery, pickFromCamera, uploadImage } =
     useImagePicker();
 
-  //Función para crear
   const onSubmit = async (values: SpeciesFormValues) => {
     setSaving(true);
-    try {
-      const newId = await addSpecies({ ...values, imageUrl: "" });
 
-      let imageUrl = "";
-      if (localUri) {
-        const url = await uploadImage(newId);
-        if (url) imageUrl = url;
+    try {
+      // MODO EDITAR
+      if (isEditMode && id) {
+        let imageUrl = existingImageUrl ?? values.imageUrl ?? "";
+        let imagePath = values.imagePath ?? "";
+
+        if (localUri) {
+          const uploaded = await uploadSpeciesImage(localUri, id);
+
+          if (uploaded) {
+            imageUrl = uploaded.imageUrl;
+            imagePath = uploaded.imagePath;
+          }
+        }
+
+        await updateSpecies(id, {
+          ...values,
+          imageUrl,
+          imagePath,
+        });
+
+        Alert.alert("Actualizado", "Especie actualizada correctamente.");
+        navigation.navigate("Home");
+        return;
       }
 
-      //No olvidarse actualizar el documento con la url de la imagen
-      //if(imagenUrl){ //actualizar la url en la base de datos - función actualizar}
+      // MODO CREAR
+      const newId = await addSpecies({
+        ...values,
+        imageUrl: "",
+        imagePath: "",
+      });
 
-      Alert.alert("Creado", "Especie registrada correctament.");
-      navigation.goBack();
+      let imageUrl = "";
+      let imagePath = "";
+
+      if (localUri) {
+        const uploaded = await uploadSpeciesImage(localUri, newId);
+
+        if (uploaded) {
+          imageUrl = uploaded.imageUrl;
+          imagePath = uploaded.imagePath;
+        }
+      }
+
+      await updateSpecies(newId, {
+        imageUrl,
+        imagePath,
+      });
+
+      Alert.alert("Correcto", "Especie registrada");
+      navigation.navigate("Home");
     } catch (error) {
-      Alert.alert("Error", "No se pudo gradar la especie. Intente de nuevo.");
       console.log(error);
+      Alert.alert("Error", "No se pudo guardar");
     } finally {
       setSaving(false);
     }
   };
-
   const showImageOptions = () => {
     Alert.alert("Seleccionar imagen", "Desde dónde quiere agregar la foto?", [
       { text: "Cámara", onPress: pickFromCamera },
@@ -68,6 +112,7 @@ export const FormScreen = ({ route, navigation }: Props) => {
   const {
     control,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<SpeciesFormValues>({
     defaultValues: {
@@ -77,6 +122,34 @@ export const FormScreen = ({ route, navigation }: Props) => {
       imageUrl: "",
     },
   });
+
+  useEffect(() => {
+    const loadSpeciesToEdit = async () => {
+      if (!isEditMode || !id) return;
+
+      try {
+        const data = await getSpeciesById(id);
+
+        if (!data) {
+          Alert.alert("Error", "No se encontró la especie");
+          navigation.goBack();
+          return;
+        }
+
+        setValue("commonName", data.commonName);
+        setValue("scientificName", data.scientificName);
+        setValue("habitat", data.habitat);
+        setValue("imageUrl", data.imageUrl ?? "");
+        setValue("imagePath", data.imagePath ?? "");
+        setExistingImageUrl(data.imageUrl ?? null);
+      } catch (error) {
+        Alert.alert("Error", "No se pudo cargar la especie");
+        console.log(error);
+      }
+    };
+
+    loadSpeciesToEdit();
+  }, [id]);
 
   return (
     <KeyboardAvoidingView
